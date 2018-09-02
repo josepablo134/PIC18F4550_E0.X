@@ -1,4 +1,4 @@
-MPASM 5.81                          UART.ASM   9-1-2018  18:43:56         PAGE  1
+MPASM 5.81                          UART.ASM   9-2-2018  9:35:35         PAGE  1
 
 
 LOC  OBJECT CODE     LINE SOURCE TEXT
@@ -57,7 +57,7 @@ LOC  OBJECT CODE     LINE SOURCE TEXT
                       00041 ;       BRG16   = 0
                       00042 ;       BRGH    = 1
                       00043 ;       BAUDRATE = FOSC / ( 16 ( N+1 ) )
-MPASM 5.81                          UART.ASM   9-1-2018  18:43:56         PAGE  2
+MPASM 5.81                          UART.ASM   9-2-2018  9:35:35         PAGE  2
 
 
 LOC  OBJECT CODE     LINE SOURCE TEXT
@@ -70,79 +70,179 @@ LOC  OBJECT CODE     LINE SOURCE TEXT
   02DC6C00            00048 UART_FOSC       EQU     .48000000;Hz
   0001C200            00049 UART_BAUD       EQU     .115200;Baud
   00000019            00050 UART_SPBRG      EQU     ((UART_FOSC/(.16*UART_BAUD))-1) & 0xFF ;.25
-  00000000            00051 UART_PTR_L      EQU         0x00
-  00000001            00052 UART_PTR_H      EQU         0x01
-                      00053         
-                      00054 UART_PTR    UDATA   0x063
-000063                00055 UART_PTRL       res     2
-000065                00056 UART_COUNTER    res     1
-                      00057         
-                      00058 UART_CONFIG CODE
-  0000                00059     GLOBAL UART_PTRL
-  0000                00060     GLOBAL UART_COUNTER
-  0000                00061     GLOBAL UART_INIT
-  0000                00062     GLOBAL UART_START
-  0000                00063     GLOBAL UART_STOP
-  0000                00064     GLOBAL UART_MOV
-000000                00065 UART_INIT:
-                      00066     ; Desactivar las interrupciones UART momentaneamente
-000000 9A9D           00067     BCF     PIE1,RCIE,0
-000002 989D           00068     BCF     PIE1,TXIE,0
-                      00069     ; ;
-                      00070     ;   CONFIGURAR PINES UART
-                      00071     ; ;
-000004 9E82           00072     BCF     PORTC,RC7,0
-000006 9C82           00073     BCF     PORTC,RC6,0
-000008 9E8B           00074     BCF     LATC,RC7,0
-00000A 9C8B           00075     BCF     LATC,RC6,0
-00000C 8E94           00076     BSF     TRISC,RC7,0
-00000E 8C94           00077     BSF     TRISC,RC6,0
-                      00078     ; ;
-                      00079     ;   CARGAR LAS CONFIGURACIONES EN LOS REGISTROS
-                      00080     ; ;
-000010 0E24           00081     MOVLW   UART_TXSTA
-000012 6EAC           00082     MOVWF   TXSTA,0
-000014 0E90           00083     MOVLW   UART_RCSTA
-000016 6EAB           00084     MOVWF   RCSTA,0
-000018 0E42           00085     MOVLW   UART_BAUDCON
-00001A 6EB8           00086     MOVWF   BAUDCON,0
-00001C 0E19           00087     MOVLW   (UART_SPBRG&0xFF)
-00001E 6EAF           00088     MOVWF   SPBRG,0
-                      00089     
-                      00090     ; Activar las interrupciones del puerto serial
-000020 9A9E           00091     BCF     PIR1,RCIF,0 ;LIMPIAR
-000022 989E           00092     BCF     PIR1,TXIF,0 ;   INTERRUPCIONES RX,TX
-                      00093     ;    BCF        PIE1,RCIE,0 ;DESACTIVAR LAS INTERRUPCIONES RX
-                      00094     ;    BSF        PIE1,TXIE,0 ;ACTIVAR LAS INTERRUPCIONES TX
-000024 8A9F           00095     BSF     IPR1,RCIP,0 ;   RX INT AS HIGH LEVEL INT
-000026 889F           00096     BSF     IPR1,TXIP,0 ;   TX INT AS HIGH LEVEL INT
-MPASM 5.81                          UART.ASM   9-1-2018  18:43:56         PAGE  3
+  00000000            00051 UART_RETURN_REG EQU     0x00
+                      00052 
+                      00053 ;   LET THE LINKER ALLOCATE DATA
+                      00054 UART_PTR        UDATA
+000000                00055 UART_TX                 res     2
+000002                00056 UART_RX                 res     2
+000004                00057 UART_TX_COUNTER         res     1
+000005                00058 UART_TX_STATUS          res     1
+000006                00059 UART_RX_COUNTER         res     1
+000007                00060 UART_RX_STATUS          res     1
+                      00061                 
+                      00062 
+                      00063 UART_CONFIG CODE
+                      00064     ; ;
+                      00065     ;   Variables globales
+                      00066     ; ;
+  0000                00067     GLOBAL UART_TX_COUNTER
+  0000                00068     GLOBAL UART_TX_STATUS
+  0000                00069     GLOBAL UART_TX
+  0000                00070     GLOBAL UART_RX_COUNTER
+  0000                00071     GLOBAL UART_RX_STATUS
+  0000                00072     GLOBAL UART_RX
+                      00073     ; ;
+                      00074     ;   Funciones globales
+                      00075     ; ;
+  0000                00076     GLOBAL UART_INIT
+  0000                00077     GLOBAL UART_START
+  0000                00078     GLOBAL UART_STOP
+  0000                00079     GLOBAL UART_TRANSMIT
+  0000                00080     GLOBAL UART_CANCEL_TRANSMIT
+  0000                00081     GLOBAL UART_RECEIVE
+  0000                00082     GLOBAL UART_CANCEL_RECEIVE
+000000                00083 UART_INIT:
+                      00084     ;   ;
+                      00085     ;   CONFIGURAR REGISTROS LOCALES
+                      00086     ;   ;
+000000 010?           00087     BANKSEL UART_TX
+                      00088     ; COUNTER = STATUS = 0x00
+000002 6B00           00089     CLRF    UART_TX_COUNTER,1
+000004 6B00           00090     CLRF    UART_RX_COUNTER,1
+000006 6B00           00091     CLRF    UART_TX_STATUS,1
+000008 6B00           00092     CLRF    UART_RX_STATUS,1
+                      00093     ; PTR = NULL
+00000A 6B00           00094     CLRF    UART_TX,1
+00000C 6B00           00095     CLRF    UART_TX+.1,1
+00000E 6B00           00096     CLRF    UART_RX,1
+MPASM 5.81                          UART.ASM   9-2-2018  9:35:35         PAGE  3
 
 
 LOC  OBJECT CODE     LINE SOURCE TEXT
   VALUE
 
-000028 0012           00097     RETURN
-00002A                00098 UART_MOV:
-                      00099     ;CARGAR EL NUEVO PUNTERO AL REGISTRO
-00002A 0100           00100     MOVLB   0x00
-00002C 5000           00101     MOVF    UART_PTR_L,W,0
-00002E 6E??           00102     MOVWF   UART_PTRL
-000030 5001           00103     MOVF    UART_PTR_H,W,0
-000032 6E??           00104     MOVWF   UART_PTRL+1
-000034 0012           00105     RETURN
-000036                00106 UART_START:
-                      00107     ;BSF            PIE1,TXIE,0 ;ACTIVAR LAS INTERRUPCIONES TX
-000036 8A9D           00108     BSF     PIE1,RCIE,0 ;ACTIVAR LAS INTERRUPCIONES RX
-000038 8EAB           00109     BSF     RCSTA,SPEN,0;ACTIVAR EL PUERTO SERIAL
-00003A 0012           00110     RETURN
-00003C                00111 UART_STOP:
-00003C 989D           00112     BCF     PIE1,TXIE,0 ;DESACTIVAR LAS INTERRUPCIONES TX
-00003E 9A9D           00113     BCF     PIE1,RCIE,0 ;DESACTIVAR LAS INTERRUPCIONES RX
-000040 9EAB           00114     BCF     RCSTA,SPEN,0;DESACTIVAR EL PUERTO SERIAL
-000042 0012           00115     RETURN
-                      00116     END
-MPASM 5.81                          UART.ASM   9-1-2018  18:43:56         PAGE  4
+000010 6B00           00097     CLRF    UART_RX+.1,1
+                      00098     ;   ;
+                      00099     ;   DESACTIVAR LAS INTERRUPCIONES UART
+                      00100     ;   ;
+000012 9A9D           00101     BCF     PIE1,RCIE,0
+000014 989D           00102     BCF     PIE1,TXIE,0
+                      00103     ;   ;
+                      00104     ;   LIMPIAR LAS INTERRUPCIONES PENDIENTES
+                      00105     ;   ;
+000016 9A9E           00106     BCF     PIR1,RCIF,0
+000018 989E           00107     BCF     PIR1,TXIF,0
+                      00108     ; ;
+                      00109     ;   CONFIGURAR PINES UART
+                      00110     ; ;
+00001A 9E82           00111     BCF     PORTC,RC7,0
+00001C 9C82           00112     BCF     PORTC,RC6,0
+00001E 9E8B           00113     BCF     LATC,RC7,0
+000020 9C8B           00114     BCF     LATC,RC6,0
+000022 8E94           00115     BSF     TRISC,RC7,0
+000024 8C94           00116     BSF     TRISC,RC6,0
+                      00117     ; ;
+                      00118     ;   CARGAR LAS CONFIGURACIONES EN LOS REGISTROS
+                      00119     ; ;
+000026 0E24           00120     MOVLW   UART_TXSTA
+000028 6EAC           00121     MOVWF   TXSTA,0
+00002A 0E90           00122     MOVLW   UART_RCSTA
+00002C 6EAB           00123     MOVWF   RCSTA,0
+00002E 0E42           00124     MOVLW   UART_BAUDCON
+000030 6EB8           00125     MOVWF   BAUDCON,0
+000032 0E19           00126     MOVLW   (UART_SPBRG&0xFF)
+000034 6EAF           00127     MOVWF   SPBRG,0
+                      00128     ;   ;
+                      00129     ;   CONFIGURAR LAS INTERRUPCIONES UART
+                      00130     ;   ;
+000036 8A9F           00131     BSF     IPR1,RCIP,0 ;   RX INT AS HIGH LEVEL INT
+000038 889F           00132     BSF     IPR1,TXIP,0 ;   TX INT AS HIGH LEVEL INT
+00003A 8EAB           00133     BSF     RCSTA,SPEN,0;   ACTIVAR EL PUERTO SERIAL
+00003C 0012           00134     RETURN
+00003E                00135 UART_START:
+00003E 8EAB           00136     BSF     RCSTA,SPEN,0    ;   ACTIVAR EL PUERTO SERIAL
+000040 0012           00137     RETURN
+000042                00138 UART_STOP:
+000042 9EAB           00139     BCF     RCSTA,SPEN,0    ;   DESACTIVAR EL PUERTO SERIAL
+000044 0012           00140     RETURN
+                      00141 ;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;
+                      00142 ;   TRANSMITIR EL PAQUETE DEFINIDO
+                      00143 ;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;   ;
+000046                00144 UART_TRANSMIT:
+000046 010?           00145     BANKSEL UART_TX
+                      00146     ;   VERIFICAR SI TX PENDIENTE
+000048 B100           00147     BTFSC   UART_TX_STATUS,0,1
+00004A D???           00148     BRA     UART_TRANSMIT_FAIL; ERROR! TRANSMISION PENDIENTE
+                      00149     ;   CARGAR EL NUEVO PUNTERO AL REGISTRO
+MPASM 5.81                          UART.ASM   9-2-2018  9:35:35         PAGE  4
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+00004C 5000           00150     MOVF    0x00,W,0
+00004E 6F00           00151     MOVWF   UART_TX,1
+000050 5001           00152     MOVF    0x01,W,0
+000052 6F00           00153     MOVWF   UART_TX+.1,1
+                      00154     ;   CARGAR EL CONTADOR AL REGISTRO
+000054 5002           00155     MOVF    0x02,0
+000056 6F00           00156     MOVWF   UART_TX_COUNTER,1
+000058 6A00           00157     CLRF    0x00,0
+                      00158     ;   MARCAR EL INICIO DE UNA NUEVA TRANSMISION
+00005A 8100           00159     BSF     UART_TX_STATUS,0,1
+                      00160     ;   TRANSMITIR
+00005C 889D           00161     BSF     PIE1,TXIE,0
+00005E 6A00           00162     CLRF    0x00,0
+000060 0012           00163     RETURN
+000062                00164 UART_TRANSMIT_FAIL:
+000062 5100           00165     MOVF   UART_TX_STATUS,W,1
+000064 6E00           00166     MOVWF   0x00,0
+000066 0012           00167     RETURN
+000068                00168 UART_CANCEL_TRANSMIT:
+000068 989D           00169     BCF     PIE1,TXIE,0 ;   DESACTIVAR LAS INTERRUPCIONES TX
+00006A 010?           00170     BANKSEL UART_TX
+00006C 0E02           00171     MOVLW   0x02
+00006E 6F00           00172     MOVWF   UART_TX_STATUS,1;   MARCAR COMO CANCELADO
+000070 6E00           00173     MOVWF   0x00,0
+000072 0012           00174     RETURN
+000074                00175 UART_RECEIVE:
+000074 010?           00176     BANKSEL UART_TX
+                      00177     ;   VERIFICAR SI NO HAY RECEPCIONES PENDIENTES
+000076 B100           00178     BTFSC   UART_RX_STATUS,0,1
+000078 D???           00179     BRA     UART_RECEIVE_FAIL;  ERROR! RX PENDIENTE
+                      00180     ;   CARGAR APUNTADOR Y CONTADOR A REGISTRO
+00007A 5000           00181     MOVF    0x00,W,0
+00007C 6F00           00182     MOVWF   UART_RX,1
+00007E 5001           00183     MOVF    0x01,W,0
+000080 6F00           00184     MOVWF   UART_RX+.1,1
+000082 5002           00185     MOVF    0x02,W,0
+000084 6F00           00186     MOVWF   UART_RX_COUNTER,1
+                      00187     ;   MARCAR NUEVA RECEPCION
+000086 8100           00188     BSF     UART_RX_STATUS,0,1
+                      00189     ;   COMENZAR RECEPCION
+000088 8A9D           00190     BSF     PIE1,RCIE,0
+00008A 6A00           00191     CLRF    0x00,0
+00008C 0012           00192     RETURN
+00008E                00193 UART_RECEIVE_FAIL:
+00008E 5100           00194     MOVF    UART_RX_STATUS,W,1
+000090 6E00           00195     MOVWF   0x00,0
+000092 0012           00196     RETURN
+000094                00197 UART_CANCEL_RECEIVE:
+000094 9A9D           00198     BCF     PIE1,RCIE,0 ;   DESACTIVAR LAS INTERRUPCIONES TX
+000096 010?           00199     BANKSEL UART_TX
+000098 0E02           00200     MOVLW   0x02
+00009A 6F00           00201     MOVWF   UART_RX_STATUS,1;   MARCAR COMO CANCELADO
+00009C 6E00           00202     MOVWF   0x00,0
+MPASM 5.81                          UART.ASM   9-2-2018  9:35:35         PAGE  5
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+00009E 0012           00203     RETURN
+                      00204     END
+MPASM 5.81                          UART.ASM   9-2-2018  9:35:35         PAGE  6
 
 
 SYMBOL TABLE
@@ -201,7 +301,7 @@ BRG16                             00000003
 BRGH                              00000002
 BSR                               00000FE0
 BTOEE                             00000004
-MPASM 5.81                          UART.ASM   9-1-2018  18:43:56         PAGE  5
+MPASM 5.81                          UART.ASM   9-2-2018  9:35:35         PAGE  7
 
 
 SYMBOL TABLE
@@ -260,7 +360,7 @@ CM2                               00000002
 CMCON                             00000FB4
 CMIE                              00000006
 CMIF                              00000006
-MPASM 5.81                          UART.ASM   9-1-2018  18:43:56         PAGE  6
+MPASM 5.81                          UART.ASM   9-2-2018  9:35:35         PAGE  8
 
 
 SYMBOL TABLE
@@ -319,7 +419,7 @@ EEIP                              00000004
 EEPGD                             00000007
 ENDP0                             00000003
 ENDP1                             00000004
-MPASM 5.81                          UART.ASM   9-1-2018  18:43:56         PAGE  7
+MPASM 5.81                          UART.ASM   9-2-2018  9:35:35         PAGE  9
 
 
 SYMBOL TABLE
@@ -378,7 +478,7 @@ HLVDL3                            00000003
 I2C_DAT                           00000005
 I2C_READ                          00000002
 I2C_START                         00000003
-MPASM 5.81                          UART.ASM   9-1-2018  18:43:56         PAGE  8
+MPASM 5.81                          UART.ASM   9-2-2018  9:35:35         PAGE 10
 
 
 SYMBOL TABLE
@@ -437,7 +537,7 @@ LATA6                             00000006
 LATB                              00000F8A
 LATB0                             00000000
 LATB1                             00000001
-MPASM 5.81                          UART.ASM   9-1-2018  18:43:56         PAGE  9
+MPASM 5.81                          UART.ASM   9-2-2018  9:35:35         PAGE 11
 
 
 SYMBOL TABLE
@@ -496,7 +596,7 @@ NOT_T1SYNC                        00000002
 NOT_T3SYNC                        00000002
 NOT_TO                            00000003
 NOT_W                             00000002
-MPASM 5.81                          UART.ASM   9-1-2018  18:43:56         PAGE 10
+MPASM 5.81                          UART.ASM   9-2-2018  9:35:35         PAGE 12
 
 
 SYMBOL TABLE
@@ -555,7 +655,7 @@ PORTB                             00000F81
 PORTC                             00000F82
 PORTD                             00000F83
 PORTE                             00000F84
-MPASM 5.81                          UART.ASM   9-1-2018  18:43:56         PAGE 11
+MPASM 5.81                          UART.ASM   9-2-2018  9:35:35         PAGE 13
 
 
 SYMBOL TABLE
@@ -614,7 +714,7 @@ RC7                               00000007
 RCEN                              00000003
 RCIDL                             00000006
 RCIE                              00000005
-MPASM 5.81                          UART.ASM   9-1-2018  18:43:56         PAGE 12
+MPASM 5.81                          UART.ASM   9-2-2018  9:35:35         PAGE 14
 
 
 SYMBOL TABLE
@@ -673,7 +773,7 @@ SPP3                              00000003
 SPP4                              00000004
 SPP5                              00000005
 SPP6                              00000006
-MPASM 5.81                          UART.ASM   9-1-2018  18:43:56         PAGE 13
+MPASM 5.81                          UART.ASM   9-2-2018  9:35:35         PAGE 15
 
 
 SYMBOL TABLE
@@ -732,7 +832,7 @@ T0PS0                             00000000
 T0PS1                             00000001
 T0PS2                             00000002
 T0SE                              00000004
-MPASM 5.81                          UART.ASM   9-1-2018  18:43:56         PAGE 14
+MPASM 5.81                          UART.ASM   9-2-2018  9:35:35         PAGE 16
 
 
 SYMBOL TABLE
@@ -791,7 +891,7 @@ TMR3CS                            00000001
 TMR3H                             00000FB3
 TMR3IE                            00000001
 TMR3IF                            00000001
-MPASM 5.81                          UART.ASM   9-1-2018  18:43:56         PAGE 15
+MPASM 5.81                          UART.ASM   9-2-2018  9:35:35         PAGE 17
 
 
 SYMBOL TABLE
@@ -850,7 +950,7 @@ TRNIE                             00000003
 TRNIF                             00000003
 TUN0                              00000000
 TUN1                              00000001
-MPASM 5.81                          UART.ASM   9-1-2018  18:43:56         PAGE 16
+MPASM 5.81                          UART.ASM   9-2-2018  9:35:35         PAGE 18
 
 
 SYMBOL TABLE
@@ -873,18 +973,26 @@ UA                                00000001
 UADDR                             00000F6E
 UART_BAUD                         0001C200
 UART_BAUDCON                      00000042
-UART_COUNTER                      00000065
+UART_CANCEL_RECEIVE               00000094
+UART_CANCEL_TRANSMIT              00000068
 UART_FOSC                         02DC6C00
 UART_INIT                         00000000
-UART_MOV                          0000002A
-UART_PTRL                         00000063
-UART_PTR_H                        00000001
-UART_PTR_L                        00000000
 UART_RCSTA                        00000090
+UART_RECEIVE                      00000074
+UART_RECEIVE_FAIL                 0000008E
+UART_RETURN_REG                   00000000
+UART_RX                           00000002
+UART_RX_COUNTER                   00000006
+UART_RX_STATUS                    00000007
 UART_SPBRG                        00000019
-UART_START                        00000036
-UART_STOP                         0000003C
+UART_START                        0000003E
+UART_STOP                         00000042
+UART_TRANSMIT                     00000046
+UART_TRANSMIT_FAIL                00000062
+UART_TX                           00000000
 UART_TXSTA                        00000024
+UART_TX_COUNTER                   00000004
+UART_TX_STATUS                    00000005
 UCFG                              00000F6F
 UCON                              00000F6D
 UEIE                              00000F6B
@@ -901,6 +1009,12 @@ UEP2                              00000F72
 UEP3                              00000F73
 UEP4                              00000F74
 UEP5                              00000F75
+MPASM 5.81                          UART.ASM   9-2-2018  9:35:35         PAGE 19
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
 UEP6                              00000F76
 UEP7                              00000F77
 UEP8                              00000F78
@@ -909,12 +1023,6 @@ UERRIE                            00000001
 UERRIF                            00000001
 UFRM                              00000F66
 UFRMH                             00000F67
-MPASM 5.81                          UART.ASM   9-1-2018  18:43:56         PAGE 17
-
-
-SYMBOL TABLE
-  LABEL                             VALUE 
-
 UFRML                             00000F66
 UIE                               00000F69
 UIR                               00000F68
@@ -960,6 +1068,12 @@ _CCP2MX_OFF_3H                    000000FE
 _CCP2MX_ON_3H                     000000FF
 _CONFIG1H                         00300001
 _CONFIG1L                         00300000
+MPASM 5.81                          UART.ASM   9-2-2018  9:35:35         PAGE 20
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
 _CONFIG2H                         00300003
 _CONFIG2L                         00300002
 _CONFIG3H                         00300005
@@ -968,12 +1082,6 @@ _CONFIG5H                         00300009
 _CONFIG5L                         00300008
 _CONFIG6H                         0030000B
 _CONFIG6L                         0030000A
-MPASM 5.81                          UART.ASM   9-1-2018  18:43:56         PAGE 18
-
-
-SYMBOL TABLE
-  LABEL                             VALUE 
-
 _CONFIG7H                         0030000D
 _CONFIG7L                         0030000C
 _CP0_OFF_5L                       000000FF
@@ -1019,6 +1127,12 @@ _FOSC_INTOSC_EC_1H                000000F9
 _FOSC_INTOSC_HS_1H                000000FB
 _FOSC_INTOSC_XT_1H                000000FA
 _FOSC_XTPLL_XT_1H                 000000F2
+MPASM 5.81                          UART.ASM   9-2-2018  9:35:35         PAGE 21
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
 _FOSC_XT_XT_1H                    000000F0
 _ICPRT_OFF_4L                     000000DF
 _ICPRT_ON_4L                      000000FF
@@ -1027,12 +1141,6 @@ _IDLOC1                           00200001
 _IDLOC2                           00200002
 _IDLOC3                           00200003
 _IDLOC4                           00200004
-MPASM 5.81                          UART.ASM   9-1-2018  18:43:56         PAGE 19
-
-
-SYMBOL TABLE
-  LABEL                             VALUE 
-
 _IDLOC5                           00200005
 _IDLOC6                           00200006
 _IDLOC7                           00200007
@@ -1078,6 +1186,12 @@ _WDTPS_512_2H                     000000F3
 _WDTPS_64_2H                      000000ED
 _WDTPS_8192_2H                    000000FB
 _WDTPS_8_2H                       000000E7
+MPASM 5.81                          UART.ASM   9-2-2018  9:35:35         PAGE 22
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
 _WDT_OFF_2H                       000000FE
 _WDT_ON_2H                        000000FF
 _WRT0_OFF_6L                      000000FF
@@ -1086,12 +1200,6 @@ _WRT1_OFF_6L                      000000FF
 _WRT1_ON_6L                       000000FD
 _WRT2_OFF_6L                      000000FF
 _WRT2_ON_6L                       000000FB
-MPASM 5.81                          UART.ASM   9-1-2018  18:43:56         PAGE 20
-
-
-SYMBOL TABLE
-  LABEL                             VALUE 
-
 _WRT3_OFF_6L                      000000FF
 _WRT3_ON_6L                       000000F7
 _WRTB_OFF_6H                      000000FF

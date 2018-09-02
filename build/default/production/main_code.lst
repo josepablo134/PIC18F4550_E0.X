@@ -1,4 +1,4 @@
-MPASM 5.81                     MAIN_CODE.ASM   9-1-2018  18:43:56         PAGE  1
+MPASM 5.81                     MAIN_CODE.ASM   9-2-2018  9:35:36         PAGE  1
 
 
 LOC  OBJECT CODE     LINE SOURCE TEXT
@@ -57,7 +57,7 @@ LOC  OBJECT CODE     LINE SOURCE TEXT
                       00029   CONFIG  STVREN = ON           ; Stack Full/Underflow Reset Enable bit (Stack full/underflow will cause
                              Reset)
                       00030   CONFIG  LVP = OFF              ; Single-Supply ICSP Enable bit (Single-Supply ICSP enabled)
-MPASM 5.81                     MAIN_CODE.ASM   9-1-2018  18:43:56         PAGE  2
+MPASM 5.81                     MAIN_CODE.ASM   9-2-2018  9:35:36         PAGE  2
 
 
 LOC  OBJECT CODE     LINE SOURCE TEXT
@@ -116,7 +116,7 @@ LOC  OBJECT CODE     LINE SOURCE TEXT
                       00071     MOVF        F1,W,1  ;Cargar el contenido de F1 en W
                       00072     ADDWFC      F2,F,1  ;Sumar junto con CARRY y almacenar en F2
                       00073     ENDM
-MPASM 5.81                     MAIN_CODE.ASM   9-1-2018  18:43:56         PAGE  3
+MPASM 5.81                     MAIN_CODE.ASM   9-2-2018  9:35:36         PAGE  3
 
 
 LOC  OBJECT CODE     LINE SOURCE TEXT
@@ -145,261 +145,243 @@ LOC  OBJECT CODE     LINE SOURCE TEXT
   0000                00094     EXTERN TIMER0_START
   0000                00095     EXTERN TIMER0_STOP
                       00096     
-  0000                00097     EXTERN UART_PTRL
-  0000                00098     EXTERN UART_COUNTER
-  0000                00099     EXTERN UART_INIT
-  0000                00100     EXTERN UART_MOV
-  0000                00101     EXTERN UART_START
-  0000                00102     EXTERN UART_STOP
+                      00097     ;   UART VARS
+  0000                00098     EXTERN UART_TX_COUNTER
+  0000                00099     EXTERN UART_TX_STATUS
+  0000                00100     EXTERN UART_TX
+  0000                00101     EXTERN UART_RX_COUNTER
+  0000                00102     EXTERN UART_RX_STATUS
+  0000                00103     EXTERN UART_RX
+                      00104     ;   UART FUNCTIONS
+  0000                00105     EXTERN UART_INIT
+  0000                00106     EXTERN UART_START
+  0000                00107     EXTERN UART_STOP
+  0000                00108     EXTERN UART_TRANSMIT
+  0000                00109     EXTERN UART_CANCEL_TRANSMIT
+  0000                00110     EXTERN UART_RECEIVE
+  0000                00111     EXTERN UART_CANCEL_RECEIVE
                       00006 
-  00000020            00007 UART_BUFFER_SIZE    EQU     .32
-  00000100            00008 UART_BUFFER_ADDR    EQU     0x100
-                      00009     
-                      00010 STRING  UDATA   UART_BUFFER_ADDR
-000100                00011 UART_BUFFER RES UART_BUFFER_SIZE
-                      00012     
-                      00013 RES_VECT  CODE    0x00            ; processor reset vector
-000000 EF?? F???      00014     GOTO    START                   ; go to beginning of program
-                      00015 H_ISR   CODE    0x08
-000008 EF?? F???      00016     GOTO    HIGH_ISR
-                      00017 L_ISR   CODE    0x18
-000018 EF?? F???      00018     GOTO    LOW_ISR
-                      00019 ; TODO ADD INTERRUPTS HERE IF USED
-                      00020 MAIN_PROG CODE                      ; let linker place main program
-000000                00021 HIGH_ISR:
-                      00022     ;
-                      00023     ; CARGAR    WREG
-                      00024     ;           STATUS
-                      00025     ;           BSR
-                      00026     ; EN STACK {
-000000 0005           00027     PUSH
-000002 6EFD           00028     MOVWF       TOSL,0      ;TOSL = WREG
-000004 50D8           00029     MOVF        STATUS,W,0  ;
-MPASM 5.81                     MAIN_CODE.ASM   9-1-2018  18:43:56         PAGE  4
+  000048E5            00007 TIMER0_PRECH        EQU     .18661
+  00000020            00008 UART_BUFFER_SIZE    EQU     .32
+  00000100            00009 UART_BUFFER_ADDR    EQU     0x100
+                      00010     
+                      00011 STRING  UDATA   UART_BUFFER_ADDR
+000100                00012 UART_BUFFER RES UART_BUFFER_SIZE
+                      00013     
+                      00014 RES_VECT  CODE    0x00            ; processor reset vector
+000000 EF?? F???      00015     GOTO    START                   ; go to beginning of program
+                      00016 H_ISR   CODE    0x08
+000008 EF?? F???      00017     GOTO    HIGH_ISR
+                      00018 L_ISR   CODE    0x18
+000018 EF?? F???      00019     GOTO    LOW_ISR
+                      00020 ; TODO ADD INTERRUPTS HERE IF USED
+MPASM 5.81                     MAIN_CODE.ASM   9-2-2018  9:35:36         PAGE  4
 
 
 LOC  OBJECT CODE     LINE SOURCE TEXT
   VALUE
 
-000006 6EFE           00030     MOVWF       TOSH,0      ;TOSH = STATUS
-000008 50E0           00031     MOVF        BSR,W,0     ;
-00000A 6EFF           00032     MOVWF       TOSU,0      ;TOSU = BSR
-                      00033     ;   }
-00000C B4F2           00034     BTFSC       INTCON,TMR0IF,0 ; VERIFICAR SI TMR0IF ESTA ACTIVA
-00000E D???           00035     BRA         TMR0_ISR
-000010 BA9E           00036     BTFSC       PIR1,RCIF,0     ; VERIFICAR SI RCIF ESTA ACTIVO
-000012 D???           00037     BRA         UART_RX_ISR
-000014 B89E           00038     BTFSC       PIR1,TXIF,0     ; VERIFICAR SI TXIF ESTA ACTIVO
-000016 D???           00039     BRA         UART_TX_ISR
-000018 D???           00040     BRA         HISR_OUT        ; SALIR DE LA INTERRUPCION RECUPERANDO DATOS DE LA PILA
-00001A                00041 TMR0_ISR:
-00001A 94F2           00042     BCF         INTCON,TMR0IF,0;LIMPIAR POSIBLES INTERRUPCIONES
-00001C 0100           00043     MOVLB       0x00; RECARGAR BSR ANTES DE REGRESAR
-00001E 7889           00044     BTG         LATA,RA4,0
-000020 5100           00045     MOVF        TIMER0_PRECHARGE,W,1
-000022 6ED6           00046     MOVWF       TMR0L,0
-000024 5100           00047     MOVF        TIMER0_PRECHARGE+1,W,1
-000026 6ED7           00048     MOVWF       TMR0H,0
-000028 0E21           00049     MOVLW       UART_BUFFER_SIZE+1  ; Pre cargar
-00002A 6F00           00050     MOVWF       UART_COUNTER,1      ; el contador UART
-                      00051     ;   CARGAR EL APUNTADOR
-00002C 5100           00052     MOVF        UART_PTRL,W,1
-00002E 6ED9           00053     MOVWF       FSR2L,0
-000030 5100           00054     MOVF        UART_PTRL+.1,W,1
-000032 6EDA           00055     MOVWF       FSR2H,0
-                      00056     ;   ACTIVAR INTERRUPCION DE TRANSMISION
-000034 889D           00057     BSF         PIE1,TXIE,0
-000036 D???           00058     BRA         HISR_OUT        ; SALIR DE LA INTERRUPCION RECUPERANDO DATOS DE LA PILA
-000038                00059 UART_TX_ISR:
-000038 0100           00060     MOVLB       0x00                ; REGRESAR EL BSR antes del RETFIE
-00003A 2E00           00061     DECFSZ      UART_COUNTER,1      ; Decrementar el contador y saltar si cero
-00003C D???           00062     BRA         UART_TX_ISR_
-00003E 0E0A           00063     MOVLW       '\n'
-000040 6EAD           00064     MOVWF       TXREG,0
-000042 989D           00065     BCF         PIE1,TXIE,0         ; El contador esta vacio, terminar Transmision
-000044 D???           00066     BRA         HISR_OUT        ; SALIR DE LA INTERRUPCION RECUPERANDO DATOS DE LA PILA
-000046                00067 UART_TX_ISR_:
-000046 50DE           00068     MOVF        POSTINC2,W          ; Cargar del apuntador y enviar
-000048 6EAD           00069     MOVWF       TXREG,0             ;
-00004A D???           00070     BRA         HISR_OUT        ; SALIR DE LA INTERRUPCION RECUPERANDO DATOS DE LA PILA
-00004C                00071 UART_RX_ISR:
-00004C 50AE           00072     MOVF        RCREG,W,0
-00004E 6EAD           00073     MOVWF       TXREG,0
-000050 D???           00074     BRA         HISR_OUT        ; SALIR DE LA INTERRUPCION RECUPERANDO DATOS DE LA PILA
-000052                00075 HISR_OUT:
-                      00076     ; SACAR VARIABLES DEL STACK {
-000052 50FF           00077     MOVF        TOSU,W,0    ;BSR    = TOSU
-000054 6EE0           00078     MOVWF       BSR,0
-000056 50FE           00079     MOVF        TOSH,W,0    ;STATUS = TOSH
-000058 6ED8           00080     MOVWF       STATUS
-00005A 50FD           00081     MOVF        TOSL,W,0    ;WREG   = TOSL
-00005C 0006           00082     POP
-MPASM 5.81                     MAIN_CODE.ASM   9-1-2018  18:43:56         PAGE  5
+                      00021 MAIN_PROG CODE                      ; let linker place main program
+000000                00022 HIGH_ISR:
+                      00023     ;
+                      00024     ; CARGAR    WREG
+                      00025     ;           STATUS
+                      00026     ;           BSR
+                      00027     ; EN STACK {
+000000 0005           00028     PUSH
+000002 6EFD           00029     MOVWF       TOSL,0      ;TOSL = WREG
+000004 50D8           00030     MOVF        STATUS,W,0  ;
+000006 6EFE           00031     MOVWF       TOSH,0      ;TOSH = STATUS
+000008 50E0           00032     MOVF        BSR,W,0     ;
+00000A 6EFF           00033     MOVWF       TOSU,0      ;TOSU = BSR
+                      00034     ;   }
+00000C B4F2           00035     BTFSC       INTCON,TMR0IF,0 ; VERIFICAR SI TMR0IF ESTA ACTIVA
+00000E D???           00036     BRA         TMR0_ISR
+000010 BA9E           00037     BTFSC       PIR1,RCIF,0     ; VERIFICAR SI RCIF ESTA ACTIVO
+000012 D???           00038     BRA         UART_RX_ISR
+000014 B89E           00039     BTFSC       PIR1,TXIF,0     ; VERIFICAR SI TXIF ESTA ACTIVO
+000016 D???           00040     BRA         UART_TX_ISR
+000018 D???           00041     BRA         HISR_OUT        ; SALIR DE LA INTERRUPCION RECUPERANDO DATOS DE LA PILA
+00001A                00042 TMR0_ISR:
+00001A 010?           00043     BANKSEL     TIMER0_PRECHARGE
+00001C 5100           00044     MOVF        TIMER0_PRECHARGE+.1,W,1
+00001E 6ED7           00045     MOVWF       TMR0H,0
+000020 5100           00046     MOVF        TIMER0_PRECHARGE,W,1
+000022 6ED6           00047     MOVWF       TMR0L,0
+000024 7889           00048     BTG         LATA,RA4,0
+000026 94F2           00049     BCF         INTCON,TMR0IF,0         ; LIMPIAR POSIBLES INTERRUPCIONES
+000028 010?           00050     BANKSEL UART_BUFFER                 ; CARGAR PUNTEROS Y CONTADOR
+00002A 0E00           00051     MOVLW   (UART_BUFFER_ADDR & 0xFF)
+00002C 6E00           00052     MOVWF   0x00,0
+00002E 0E01           00053     MOVLW   (UART_BUFFER_ADDR>>.8) & 0xFF
+000030 6E01           00054     MOVWF   0x01,0
+000032 0E21           00055     MOVLW   UART_BUFFER_SIZE+.1
+000034 6E02           00056     MOVWF   0x02,0
+000036 EC?? F???      00057     CALL        UART_TRANSMIT           ; SOLICITAR TRANSMISION
+00003A D???           00058     BRA         HISR_OUT        ; SALIR DE LA INTERRUPCION RECUPERANDO DATOS DE LA PILA
+00003C                00059 UART_TX_ISR:
+00003C 010?           00060     BANKSEL     UART_TX
+00003E 5100           00061     MOVF        UART_TX,W,1     ;
+000040 6ED9           00062     MOVWF       FSR2L,0         ;   CARGAR APUNTADOR
+000042 5100           00063     MOVF        UART_TX+.1,W,1  ;   DE TRANSMISION
+000044 6EDA           00064     MOVWF       FSR2H,0         ;
+000046 2E00           00065     DECFSZ      UART_TX_COUNTER,1           ; Decrementar el contador y saltar si cero
+000048 D???           00066     BRA         UART_TX_ISR_
+00004A 0E0A           00067     MOVLW       '\n'
+00004C 6EAD           00068     MOVWF       TXREG,0
+00004E 989D           00069     BCF         PIE1,TXIE,0         ; El contador esta vacio, terminar Transmision
+000050 6B00           00070     CLRF        UART_TX_STATUS,1
+000052 D???           00071     BRA         HISR_OUT            ; SALIR DE LA INTERRUPCION RECUPERANDO DATOS DE LA PILA
+000054                00072 UART_TX_ISR_:
+000054 50DE           00073     MOVF        POSTINC2,W          ; Cargar del apuntador y enviar
+MPASM 5.81                     MAIN_CODE.ASM   9-2-2018  9:35:36         PAGE  5
 
 
 LOC  OBJECT CODE     LINE SOURCE TEXT
   VALUE
 
-                      00083     ;   }
-00005E 0010           00084     RETFIE
-000060                00085 LOW_ISR:
-000060 0000           00086     NOP
-000062 0010           00087     RETFIE
-000064                00088 START:
-000064 EC?? F???      00089     CALL    POR_SYS
-                      00090 ;    BZ   ERROR_SYS;SI NO ES CERO SALTAR
-000068 EC?? F???      00091     CALL    SYSTEM_INIT
-00006C EC?? F???      00092     CALL    TIMER0_INIT
-000070 EC?? F???      00093     CALL    UART_INIT
-                      00094 ;   CARGAR DATO AL UART {
-000074 0E00           00095     MOVLW       (UART_BUFFER_ADDR & 0xFF)       ;
-000076 6E00           00096     MOVWF       0x00,0  ; CARGAR EL PUNTERO AL UART
-000078 0E01           00097     MOVLW       (UART_BUFFER_ADDR>>.8) & 0xFF   ;
-00007A 6E01           00098     MOVWF       0x01,0  ;
-00007C EC?? F???      00099     CALL        UART_MOV
-                      00100 ;   CARGAR DATO AL UART }
-                      00101 ;   CONFIGURAR PUERTO A {  
-000080 6A80           00102     CLRF        PORTA
-000082 6A89           00103     CLRF        LATA
-000084 0E0F           00104     MOVLW       0Fh
-000086 6EC1           00105     MOVWF       ADCON1
-000088 0E07           00106     MOVLW       07h
-00008A 6EB4           00107     MOVWF       CMCON
-00008C 6A92           00108     CLRF        TRISA;Configurar PORTA como salida
-                      00109 ;   CONFIGURAR PUERTO A }
-                      00110     ; Comenzar el servicio UART
-00008E 0101           00111     MOVLB       0x01
-000090 0E30           00112     MOVLW       '0'
-000092 6F00           00113     MOVWF       UART_BUFFER,1
-000094 0E31           00114     MOVLW       '1'
-000096 6F00           00115     MOVWF       UART_BUFFER+.1,1
-000098 0E32           00116     MOVLW       '2'
-00009A 6F00           00117     MOVWF       UART_BUFFER+.2,1
-00009C 0E33           00118     MOVLW       '3'
-00009E 6F00           00119     MOVWF       UART_BUFFER+.3,1
-0000A0 0E34           00120     MOVLW       '4'
-0000A2 6F00           00121     MOVWF       UART_BUFFER+.4,1
-0000A4 0E35           00122     MOVLW       '5'
-0000A6 6F00           00123     MOVWF       UART_BUFFER+.5,1
-0000A8 0E36           00124     MOVLW       '6'
-0000AA 6F00           00125     MOVWF       UART_BUFFER+.6,1
-0000AC 0E37           00126     MOVLW       '7'
-0000AE 6F00           00127     MOVWF       UART_BUFFER+.7,1
-0000B0 0E38           00128     MOVLW       '8'
-0000B2 6F00           00129     MOVWF       UART_BUFFER+.8,1
-0000B4 0E39           00130     MOVLW       '9'
-0000B6 6F00           00131     MOVWF       UART_BUFFER+.9,1
-0000B8 0E41           00132     MOVLW       'A'
-0000BA 6F00           00133     MOVWF       UART_BUFFER+.10,1
-0000BC 0E42           00134     MOVLW       'B'
-0000BE 6F00           00135     MOVWF       UART_BUFFER+.11,1
-MPASM 5.81                     MAIN_CODE.ASM   9-1-2018  18:43:56         PAGE  6
+000056 6EAD           00074     MOVWF       TXREG,0             ;
+000058 50D9           00075     MOVF        FSR2L,W,0
+00005A 6F00           00076     MOVWF       UART_TX,1           ;
+00005C 50DA           00077     MOVF        FSR2H,W,0           ;   ALMACENAR APUNTADOR
+00005E 6F00           00078     MOVWF       UART_TX+.1,1        ;
+000060 D???           00079     BRA         HISR_OUT        ; SALIR DE LA INTERRUPCION RECUPERANDO DATOS DE LA PILA
+000062                00080 UART_RX_ISR:
+000062 50AE           00081     MOVF        RCREG,W,0
+000064 6EAD           00082     MOVWF       TXREG,0
+000066 D???           00083     BRA         HISR_OUT        ; SALIR DE LA INTERRUPCION RECUPERANDO DATOS DE LA PILA
+000068                00084 HISR_OUT:
+                      00085     ; SACAR VARIABLES DEL STACK {
+000068 50FF           00086     MOVF        TOSU,W,0    ;BSR    = TOSU
+00006A 6EE0           00087     MOVWF       BSR,0
+00006C 50FE           00088     MOVF        TOSH,W,0    ;STATUS = TOSH
+00006E 6ED8           00089     MOVWF       STATUS
+000070 50FD           00090     MOVF        TOSL,W,0    ;WREG   = TOSL
+000072 0006           00091     POP
+                      00092     ;   }
+000074 0010           00093     RETFIE
+000076                00094 LOW_ISR:
+000076 0000           00095     NOP
+000078 0010           00096     RETFIE
+00007A                00097 START:
+00007A EC?? F???      00098     CALL    POR_SYS
+                      00099 ;    BZ   ERROR_SYS;SI NO ES CERO SALTAR
+00007E EC?? F???      00100     CALL    SYSTEM_INIT
+000082 EC?? F???      00101     CALL    TIMER0_INIT
+000086 EC?? F???      00102     CALL    UART_INIT
+00008A EC?? F???      00103     CALL    UART_START
+                      00104     ;   CONFIGURE TIMER PRECHARGE {
+00008E 0E48           00105     MOVLW   (TIMER0_PRECH >> 8)
+000090 6E01           00106     MOVWF   0x01
+000092 0EE5           00107     MOVLW   (TIMER0_PRECH & 0xFF)
+000094 6E00           00108     MOVWF   0x00
+000096 EC?? F???      00109     CALL    TIMER0_WR
+                      00110     ;   CONFIGURE TIMER PRECHARGE }
+                      00111     ;   CONFIGURAR BUFFER UART TX {
+00009A 0E00           00112     MOVLW   (UART_BUFFER_ADDR & 0xFF)
+00009C 6E00           00113     MOVWF   0x00,0
+00009E 0E01           00114     MOVLW   (UART_BUFFER_ADDR>>.8) & 0xFF
+0000A0 6E01           00115     MOVWF   0x01,0
+0000A2 0E21           00116     MOVLW   UART_BUFFER_SIZE+.1
+0000A4 6E02           00117     MOVWF   0x02,0
+                      00118     ;   CONFIGURAR BUFFER UART TX }
+                      00119     ;   ESCRIBIR DATOS EN EL BUFFER
+0000A6 010?           00120     BANKSEL UART_BUFFER
+0000A8 0E48           00121     MOVLW   'H'
+0000AA 6F00           00122     MOVWF   UART_BUFFER,1
+0000AC 0E65           00123     MOVLW   'e'
+0000AE 6F00           00124     MOVWF   UART_BUFFER+.1,1
+0000B0 0E6C           00125     MOVLW   'l'
+0000B2 6F00           00126     MOVWF   UART_BUFFER+.2,1
+MPASM 5.81                     MAIN_CODE.ASM   9-2-2018  9:35:36         PAGE  6
 
 
 LOC  OBJECT CODE     LINE SOURCE TEXT
   VALUE
 
-0000C0 0E43           00136     MOVLW       'C'
-0000C2 6F00           00137     MOVWF       UART_BUFFER+.12,1
-0000C4 0E44           00138     MOVLW       'D'
-0000C6 6F00           00139     MOVWF       UART_BUFFER+.13,1
-0000C8 0E45           00140     MOVLW       'E'
-0000CA 6F00           00141     MOVWF       UART_BUFFER+.14,1
-0000CC 0E46           00142     MOVLW       'F'
-0000CE 6F00           00143     MOVWF       UART_BUFFER+.15,1
-0000D0 0E20           00144     MOVLW       ' '
-0000D2 6F00           00145     MOVWF       UART_BUFFER+.16,1
-0000D4 0E48           00146     MOVLW       'H'
-0000D6 6F00           00147     MOVWF       UART_BUFFER+.17,1
-0000D8 0E65           00148     MOVLW       'e'
-0000DA 6F00           00149     MOVWF       UART_BUFFER+.18,1
-0000DC 0E6C           00150     MOVLW       'l'
-0000DE 6F00           00151     MOVWF       UART_BUFFER+.19,1
-0000E0 0E6C           00152     MOVLW       'l'
-0000E2 6F00           00153     MOVWF       UART_BUFFER+.20,1
-0000E4 0E6F           00154     MOVLW       'o'
-0000E6 6F00           00155     MOVWF       UART_BUFFER+.21,1
-0000E8 0E20           00156     MOVLW       ' '
-0000EA 6F00           00157     MOVWF       UART_BUFFER+.22,1
-0000EC 0E77           00158     MOVLW       'w'
-0000EE 6F00           00159     MOVWF       UART_BUFFER+.23,1
-0000F0 0E6F           00160     MOVLW       'o'
-0000F2 6F00           00161     MOVWF       UART_BUFFER+.24,1
-0000F4 0E72           00162     MOVLW       'r'
-0000F6 6F00           00163     MOVWF       UART_BUFFER+.25,1
-0000F8 0E6C           00164     MOVLW       'l'
-0000FA 6F00           00165     MOVWF       UART_BUFFER+.26,1
-0000FC 0E64           00166     MOVLW       'd'
-0000FE 6F00           00167     MOVWF       UART_BUFFER+.27,1
-000100 0E23           00168     MOVLW       '#'
-000102 6F00           00169     MOVWF       UART_BUFFER+.28,1
-000104 0E23           00170     MOVLW       '#'
-000106 6F00           00171     MOVWF       UART_BUFFER+.29,1
-000108 0E23           00172     MOVLW       '#'
-00010A 6F00           00173     MOVWF       UART_BUFFER+.30,1
-00010C 0E23           00174     MOVLW       '#'
-00010E 6F00           00175     MOVWF       UART_BUFFER+.31,1
-000110 EC?? F???      00176     CALL        UART_START
-000114 EC?? F???      00177     CALL        TIMER0_START
-                      00178     
-                      00179 ;   CONFIGURAR AUTOFANTASTICO EN PUERTO B Y PUERTO D
-                      00180     CBLOCK          0x00
-  00000000            00181         DELAY_R0
-  00000001            00182         DELAY_R1
-  00000002            00183         COUNTER
-                      00184     ENDC
-  00000000            00185 DELAY_R0_PRECHARGE      EQU 0x00
-  00000000            00186 DELAY_R1_PRECHARGE      EQU 0x00
-  00000008            00187 COUNTER_PRECHARGE       EQU 0x08
-                      00188 
-MPASM 5.81                     MAIN_CODE.ASM   9-1-2018  18:43:56         PAGE  7
+0000B4 0E6C           00127     MOVLW   'l'
+0000B6 6F00           00128     MOVWF   UART_BUFFER+.3,1
+0000B8 0E6F           00129     MOVLW   'o'
+0000BA 6F00           00130     MOVWF   UART_BUFFER+.4,1
+0000BC 0E20           00131     MOVLW   ' '
+0000BE 6F00           00132     MOVWF   UART_BUFFER+.5,1
+0000C0 0E77           00133     MOVLW   'w'
+0000C2 6F00           00134     MOVWF   UART_BUFFER+.6,1
+0000C4 0E6F           00135     MOVLW   'o'
+0000C6 6F00           00136     MOVWF   UART_BUFFER+.7,1
+0000C8 0E72           00137     MOVLW   'r'
+0000CA 6F00           00138     MOVWF   UART_BUFFER+.8,1
+0000CC 0E6C           00139     MOVLW   'l'
+0000CE 6F00           00140     MOVWF   UART_BUFFER+.9,1
+0000D0 0E64           00141     MOVLW   'd'
+0000D2 6F00           00142     MOVWF   UART_BUFFER+.10,1
+0000D4 0E20           00143     MOVLW   ' '
+0000D6 6F00           00144     MOVWF   UART_BUFFER+.11,1
+0000D8 0E30           00145     MOVLW   '0'
+0000DA 6F00           00146     MOVWF   UART_BUFFER+.12,1
+0000DC 0E31           00147     MOVLW   '1'
+0000DE 6F00           00148     MOVWF   UART_BUFFER+.13,1
+0000E0 0E32           00149     MOVLW   '2'
+0000E2 6F00           00150     MOVWF   UART_BUFFER+.14,1
+0000E4 0E33           00151     MOVLW   '3'
+0000E6 6F00           00152     MOVWF   UART_BUFFER+.15,1
+0000E8 0E34           00153     MOVLW   '4'
+0000EA 6F00           00154     MOVWF   UART_BUFFER+.16,1
+0000EC 0E35           00155     MOVLW   '5'
+0000EE 6F00           00156     MOVWF   UART_BUFFER+.17,1
+0000F0 0E36           00157     MOVLW   '6'
+0000F2 6F00           00158     MOVWF   UART_BUFFER+.18,1
+0000F4 0E37           00159     MOVLW   '7'
+0000F6 6F00           00160     MOVWF   UART_BUFFER+.19,1
+0000F8 0E38           00161     MOVLW   '8'
+0000FA 6F00           00162     MOVWF   UART_BUFFER+.20,1
+0000FC 0E39           00163     MOVLW   '9'
+0000FE 6F00           00164     MOVWF   UART_BUFFER+.21,1
+000100 0E41           00165     MOVLW   'A'
+000102 6F00           00166     MOVWF   UART_BUFFER+.22,1
+000104 0E42           00167     MOVLW   'B'
+000106 6F00           00168     MOVWF   UART_BUFFER+.23,1
+000108 0E43           00169     MOVLW   'C'
+00010A 6F00           00170     MOVWF   UART_BUFFER+.24,1
+00010C 0E44           00171     MOVLW   'D'
+00010E 6F00           00172     MOVWF   UART_BUFFER+.25,1
+000110 0E45           00173     MOVLW   'E'
+000112 6F00           00174     MOVWF   UART_BUFFER+.26,1
+000114 0E46           00175     MOVLW   'F'
+000116 6F00           00176     MOVWF   UART_BUFFER+.27,1
+000118 0E30           00177     MOVLW   '0'
+00011A 6F00           00178     MOVWF   UART_BUFFER+.28,1
+00011C 0E40           00179     MOVLW   '@'
+MPASM 5.81                     MAIN_CODE.ASM   9-2-2018  9:35:36         PAGE  7
 
 
 LOC  OBJECT CODE     LINE SOURCE TEXT
   VALUE
 
-000118 6A81           00189     CLRF        PORTB,0
-00011A 6A83           00190     CLRF        PORTD,0
-00011C 0E0E           00191     MOVLW       0x0E
-00011E 6EC1           00192     MOVWF       ADCON1,0
-000120 6A93           00193     CLRF        TRISB,0;H
-000122 6A95           00194     CLRF        TRISD,0;L
-                      00195     
-000124 808A           00196     BSF         LATB,RB0,0;Cargar el bit que se rotara
-000126                00197 LOOP:
-000126                00198 PORTB_LEFT_ROTATION:
-                      00199     ;CALL    DELAY
-000126 368A           00200     RLCF    LATB,F,0
-000128 E2??           00201     BC      PORTD_LEFT_ROTATION
-00012A EF?? F???      00202     goto    PORTB_LEFT_ROTATION
-00012E                00203 PORTD_LEFT_ROTATION:
-                      00204     ;CALL    DELAY
-00012E 368C           00205     RLCF    LATD,F,0
-000130 E2??           00206     BC      PORTD_RIGHT_ROTATION
-000132 EF?? F???      00207     goto    PORTD_LEFT_ROTATION
-000136                00208 PORTD_RIGHT_ROTATION:
-                      00209     ;CALL    DELAY
-000136 328C           00210     RRCF    LATD,F,0
-000138 E2??           00211     BC      PORTB_RIGHT_ROTATION
-00013A EF?? F???      00212     goto    PORTD_RIGHT_ROTATION
-00013E                00213 PORTB_RIGHT_ROTATION:
-                      00214     ;CALL    DELAY
-00013E 328A           00215     RRCF    LATB,F,0
-000140 E2??           00216     BC      LOOP
-000142 EF?? F???      00217     goto    PORTB_RIGHT_ROTATION
-000146                00218 DELAY:
-000146 0E00           00219     MOVLW   DELAY_R0_PRECHARGE
-000148 6E00           00220     MOVWF   DELAY_R0
-00014A 0E00           00221     MOVLW   DELAY_R1_PRECHARGE
-00014C 6E01           00222     MOVWF   DELAY_R1
-00014E                00223 DELAY_LOOP_0:
-00014E 2E00           00224     DECFSZ  DELAY_R0
-000150 D???           00225     BRA     DELAY_LOOP_0
-000152 2E01           00226     DECFSZ  DELAY_R1
-000154 D???           00227     BRA     DELAY_LOOP_0
-000156 0012           00228     RETURN
-                      00229     END
-MPASM 5.81                     MAIN_CODE.ASM   9-1-2018  18:43:56         PAGE  8
+00011E 6F00           00180     MOVWF   UART_BUFFER+.29,1
+000120 0E23           00181     MOVLW   '#'
+000122 6F00           00182     MOVWF   UART_BUFFER+.30,1
+000124 0E26           00183     MOVLW   '&'
+000126 6F00           00184     MOVWF   UART_BUFFER+.31,1
+                      00185     ;   SOLICITAR TRANSMISION
+                      00186         ;   DONT REALLY CARE, JUST AN ECHO TEST
+                      00187         ;    CLRF    0x00,0
+                      00188         ;    CLRF    0x01,0
+                      00189         ;    CLRF    0x02,0
+000128 EC?? F???      00190     CALL    UART_RECEIVE
+                      00191 ;   CONFIGURAR PUERTO A {  
+00012C 6A80           00192     CLRF        PORTA
+00012E 6A89           00193     CLRF        LATA
+000130 0E0F           00194     MOVLW       0Fh
+000132 6EC1           00195     MOVWF       ADCON1
+000134 0E07           00196     MOVLW       07h
+000136 6EB4           00197     MOVWF       CMCON
+000138 6A92           00198     CLRF        TRISA;Configurar PORTA como salida
+                      00199 ;   CONFIGURAR PUERTO A }
+00013A EC?? F???      00200     CALL    TIMER0_START
+00013E EF?? F???      00201     GOTO    $
+                      00202     END
+MPASM 5.81                     MAIN_CODE.ASM   9-2-2018  9:35:36         PAGE  8
 
 
 SYMBOL TABLE
@@ -458,7 +440,7 @@ BRG16                             00000003
 BRGH                              00000002
 BSR                               00000FE0
 BSR_BYTE_ADD                      
-MPASM 5.81                     MAIN_CODE.ASM   9-1-2018  18:43:56         PAGE  9
+MPASM 5.81                     MAIN_CODE.ASM   9-2-2018  9:35:36         PAGE  9
 
 
 SYMBOL TABLE
@@ -517,7 +499,7 @@ CM0                               00000000
 CM1                               00000001
 CM2                               00000002
 CMCON                             00000FB4
-MPASM 5.81                     MAIN_CODE.ASM   9-1-2018  18:43:56         PAGE 10
+MPASM 5.81                     MAIN_CODE.ASM   9-2-2018  9:35:36         PAGE 10
 
 
 SYMBOL TABLE
@@ -526,8 +508,6 @@ SYMBOL TABLE
 CMIE                              00000006
 CMIF                              00000006
 CMIP                              00000006
-COUNTER                           00000002
-COUNTER_PRECHARGE                 00000008
 CRC16EE                           00000002
 CRC16EF                           00000002
 CRC5EE                            00000001
@@ -557,12 +537,6 @@ DDRB                              TRISB
 DDRC                              TRISC
 DDRD                              TRISD
 DDRE                              TRISE
-DELAY                             00000146
-DELAY_LOOP_0                      0000014E
-DELAY_R0                          00000000
-DELAY_R0_PRECHARGE                00000000
-DELAY_R1                          00000001
-DELAY_R1_PRECHARGE                00000000
 DFN8EE                            00000003
 DFN8EF                            00000003
 DIR                               00000002
@@ -576,12 +550,6 @@ ECCPAS0                           00000004
 ECCPAS1                           00000005
 ECCPAS2                           00000006
 ECCPASE                           00000007
-MPASM 5.81                     MAIN_CODE.ASM   9-1-2018  18:43:56         PAGE 11
-
-
-SYMBOL TABLE
-  LABEL                             VALUE 
-
 EEADR                             00000FA9
 EECON1                            00000FA6
 EECON2                            00000FA7
@@ -590,6 +558,12 @@ EEIE                              00000004
 EEIF                              00000004
 EEIP                              00000004
 EEPGD                             00000007
+MPASM 5.81                     MAIN_CODE.ASM   9-2-2018  9:35:36         PAGE 11
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
 ENDP0                             00000003
 ENDP1                             00000004
 ENDP2                             00000005
@@ -634,13 +608,7 @@ GO                                00000001
 GO_DONE                           00000001
 GO_NOT_DONE                       00000001
 HIGH_ISR                          00000000
-HISR_OUT                          00000052
-MPASM 5.81                     MAIN_CODE.ASM   9-1-2018  18:43:56         PAGE 12
-
-
-SYMBOL TABLE
-  LABEL                             VALUE 
-
+HISR_OUT                          00000068
 HLVDCON                           00000FD2
 HLVDEN                            00000004
 HLVDIE                            00000002
@@ -649,6 +617,12 @@ HLVDIN                            00000005
 HLVDIP                            00000002
 HLVDL0                            00000000
 HLVDL1                            00000001
+MPASM 5.81                     MAIN_CODE.ASM   9-2-2018  9:35:36         PAGE 12
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
 HLVDL2                            00000002
 HLVDL3                            00000003
 I2C_DAT                           00000005
@@ -694,12 +668,6 @@ IPR2                              00000FA2
 IRCF0                             00000004
 IRCF1                             00000005
 IRCF2                             00000006
-MPASM 5.81                     MAIN_CODE.ASM   9-1-2018  18:43:56         PAGE 13
-
-
-SYMBOL TABLE
-  LABEL                             VALUE 
-
 IRVST                             00000005
 IVRST                             00000005
 LATA                              00000F89
@@ -708,6 +676,12 @@ LATA1                             00000001
 LATA2                             00000002
 LATA3                             00000003
 LATA4                             00000004
+MPASM 5.81                     MAIN_CODE.ASM   9-2-2018  9:35:36         PAGE 13
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
 LATA5                             00000005
 LATA6                             00000006
 LATB                              00000F8A
@@ -738,8 +712,7 @@ LATE                              00000F8D
 LATE0                             00000000
 LATE1                             00000001
 LATE2                             00000002
-LOOP                              00000126
-LOW_ISR                           00000060
+LOW_ISR                           00000076
 LVDCON                            00000FD2
 LVDEN                             00000004
 LVDIE                             00000002
@@ -753,12 +726,6 @@ LVDL3                             00000003
 LVV0                              00000000
 LVV1                              00000001
 LVV2                              00000002
-MPASM 5.81                     MAIN_CODE.ASM   9-1-2018  18:43:56         PAGE 14
-
-
-SYMBOL TABLE
-  LABEL                             VALUE 
-
 LVV3                              00000003
 N                                 00000004
 NOT_A                             00000005
@@ -768,6 +735,12 @@ NOT_DONE                          00000001
 NOT_IPEN                          00000007
 NOT_PD                            00000002
 NOT_POR                           00000001
+MPASM 5.81                     MAIN_CODE.ASM   9-2-2018  9:35:36         PAGE 14
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
 NOT_RBPU                          00000007
 NOT_RI                            00000004
 NOT_T1SYNC                        00000002
@@ -812,12 +785,6 @@ PGC                               00000006
 PGD                               00000007
 PGM                               00000005
 PIDEE                             00000000
-MPASM 5.81                     MAIN_CODE.ASM   9-1-2018  18:43:56         PAGE 15
-
-
-SYMBOL TABLE
-  LABEL                             VALUE 
-
 PIDEF                             00000000
 PIE1                              00000F9D
 PIE2                              00000FA0
@@ -827,15 +794,17 @@ PKTDIS                            00000004
 PLUSW0                            00000FEB
 PLUSW1                            00000FE3
 PLUSW2                            00000FDB
+MPASM 5.81                     MAIN_CODE.ASM   9-2-2018  9:35:36         PAGE 15
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
 POR                               00000001
 PORTA                             00000F80
 PORTB                             00000F81
-PORTB_LEFT_ROTATION               00000126
-PORTB_RIGHT_ROTATION              0000013E
 PORTC                             00000F82
 PORTD                             00000F83
-PORTD_LEFT_ROTATION               0000012E
-PORTD_RIGHT_ROTATION              00000136
 PORTE                             00000F84
 POR_SYS                           00000000
 POSTDEC0                          00000FED
@@ -871,12 +840,6 @@ RA5                               00000005
 RA6                               00000006
 RB0                               00000000
 RB1                               00000001
-MPASM 5.81                     MAIN_CODE.ASM   9-1-2018  18:43:56         PAGE 16
-
-
-SYMBOL TABLE
-  LABEL                             VALUE 
-
 RB2                               00000002
 RB3                               00000003
 RB4                               00000004
@@ -890,6 +853,12 @@ RBPU                              00000007
 RC0                               00000000
 RC1                               00000001
 RC2                               00000002
+MPASM 5.81                     MAIN_CODE.ASM   9-2-2018  9:35:36         PAGE 16
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
 RC4                               00000004
 RC5                               00000005
 RC6                               00000006
@@ -930,12 +899,6 @@ RXDTP                             00000005
 R_NOT_W                           00000002
 R_W                               00000002
 S                                 00000003
-MPASM 5.81                     MAIN_CODE.ASM   9-1-2018  18:43:56         PAGE 17
-
-
-SYMBOL TABLE
-  LABEL                             VALUE 
-
 SBOREN                            00000006
 SCKP                              00000004
 SCS0                              00000000
@@ -949,6 +912,12 @@ SOFIF                             00000006
 SPBRG                             00000FAF
 SPBRGH                            00000FB0
 SPEN                              00000007
+MPASM 5.81                     MAIN_CODE.ASM   9-2-2018  9:35:36         PAGE 17
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
 SPP0                              00000000
 SPP1                              00000001
 SPP2                              00000002
@@ -984,17 +953,11 @@ SSPOV                             00000006
 SSPSTAT                           00000FC7
 STALLIE                           00000005
 STALLIF                           00000005
-START                             00000064
+START                             0000007A
 STATUS                            00000FD8
 STKFUL                            00000007
 STKOVF                            00000007
 STKPTR                            00000FFC
-MPASM 5.81                     MAIN_CODE.ASM   9-1-2018  18:43:56         PAGE 18
-
-
-SYMBOL TABLE
-  LABEL                             VALUE 
-
 STKPTR0                           00000000
 STKPTR1                           00000001
 STKPTR2                           00000002
@@ -1008,6 +971,12 @@ SYNC                              00000004
 SYSTEM_INIT                       00000000
 T08BIT                            00000006
 T0CKI                             00000004
+MPASM 5.81                     MAIN_CODE.ASM   9-2-2018  9:35:36         PAGE 18
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
 T0CON                             00000FD5
 T0CS                              00000005
 T0IE                              00000005
@@ -1046,14 +1015,9 @@ TBLPTRH                           00000FF7
 TBLPTRL                           00000FF6
 TBLPTRU                           00000FF8
 TIMER0_INIT                       00000000
+TIMER0_PRECH                      000048E5
 TIMER0_PRECHARGE                  00000000
 TIMER0_START                      00000000
-MPASM 5.81                     MAIN_CODE.ASM   9-1-2018  18:43:56         PAGE 19
-
-
-SYMBOL TABLE
-  LABEL                             VALUE 
-
 TIMER0_STOP                       00000000
 TIMER0_WR                         00000000
 TMR0                              00000FD6
@@ -1066,6 +1030,12 @@ TMR0ON                            00000007
 TMR0_ISR                          0000001A
 TMR1                              00000FCE
 TMR1CS                            00000001
+MPASM 5.81                     MAIN_CODE.ASM   9-2-2018  9:35:36         PAGE 19
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
 TMR1H                             00000FCF
 TMR1IE                            00000000
 TMR1IF                            00000000
@@ -1107,12 +1077,6 @@ TRISB0                            00000000
 TRISB1                            00000001
 TRISB2                            00000002
 TRISB3                            00000003
-MPASM 5.81                     MAIN_CODE.ASM   9-1-2018  18:43:56         PAGE 20
-
-
-SYMBOL TABLE
-  LABEL                             VALUE 
-
 TRISB4                            00000004
 TRISB5                            00000005
 TRISB6                            00000006
@@ -1125,6 +1089,12 @@ TRISC6                            00000006
 TRISC7                            00000007
 TRISD                             00000F95
 TRISD0                            00000000
+MPASM 5.81                     MAIN_CODE.ASM   9-2-2018  9:35:36         PAGE 20
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
 TRISD1                            00000001
 TRISD2                            00000002
 TRISD3                            00000003
@@ -1159,24 +1129,31 @@ UADDR                             00000F6E
 UART_BUFFER                       00000100
 UART_BUFFER_ADDR                  00000100
 UART_BUFFER_SIZE                  00000020
-UART_COUNTER                      00000000
+UART_CANCEL_RECEIVE               00000000
+UART_CANCEL_TRANSMIT              00000000
 UART_INIT                         00000000
-UART_MOV                          00000000
-UART_PTRL                         00000000
-UART_RX_ISR                       0000004C
+UART_RECEIVE                      00000000
+UART_RX                           00000000
+UART_RX_COUNTER                   00000000
+UART_RX_ISR                       00000062
+UART_RX_STATUS                    00000000
 UART_START                        00000000
 UART_STOP                         00000000
-MPASM 5.81                     MAIN_CODE.ASM   9-1-2018  18:43:56         PAGE 21
+UART_TRANSMIT                     00000000
+UART_TX                           00000000
+UART_TX_COUNTER                   00000000
+UART_TX_ISR                       0000003C
+UART_TX_ISR_                      00000054
+UART_TX_STATUS                    00000000
+UCFG                              00000F6F
+UCON                              00000F6D
+UEIE                              00000F6B
+MPASM 5.81                     MAIN_CODE.ASM   9-2-2018  9:35:36         PAGE 21
 
 
 SYMBOL TABLE
   LABEL                             VALUE 
 
-UART_TX_ISR                       00000038
-UART_TX_ISR_                      00000046
-UCFG                              00000F6F
-UCON                              00000F6D
-UEIE                              00000F6B
 UEIR                              00000F6A
 UEP0                              00000F70
 UEP1                              00000F71
@@ -1225,17 +1202,17 @@ WREG                              00000FE8
 WREN                              00000002
 WRERR                             00000003
 WRSPP                             00000006
-MPASM 5.81                     MAIN_CODE.ASM   9-1-2018  18:43:56         PAGE 22
-
-
-SYMBOL TABLE
-  LABEL                             VALUE 
-
 WS0                               00000000
 WS1                               00000001
 WS2                               00000002
 WS3                               00000003
 WUE                               00000001
+MPASM 5.81                     MAIN_CODE.ASM   9-2-2018  9:35:36         PAGE 22
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
 Z                                 00000002
 _BORV_0_2L                        000000E7
 _BORV_1_2L                        000000EF
@@ -1284,17 +1261,17 @@ _EBTR0_ON_7L                      000000FE
 _EBTR1_OFF_7L                     000000FF
 _EBTR1_ON_7L                      000000FD
 _EBTR2_OFF_7L                     000000FF
-MPASM 5.81                     MAIN_CODE.ASM   9-1-2018  18:43:56         PAGE 23
-
-
-SYMBOL TABLE
-  LABEL                             VALUE 
-
 _EBTR2_ON_7L                      000000FB
 _EBTR3_OFF_7L                     000000FF
 _EBTR3_ON_7L                      000000F7
 _EBTRB_OFF_7H                     000000FF
 _EBTRB_ON_7H                      000000BF
+MPASM 5.81                     MAIN_CODE.ASM   9-2-2018  9:35:36         PAGE 23
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
 _FCMEN_OFF_1H                     000000BF
 _FCMEN_ON_1H                      000000FF
 _FOSC_ECIO_EC_1H                  000000F4
@@ -1325,6 +1302,7 @@ _LPT1OSC_OFF_3H                   000000FB
 _LPT1OSC_ON_3H                    000000FF
 _LVP_OFF_4L                       000000FB
 _LVP_ON_4L                        000000FF
+_MAIN_PROG_013E                   0000013E
 _MCLRE_OFF_3H                     0000007F
 _MCLRE_ON_3H                      000000FF
 _PBADEN_OFF_3H                    000000FD
@@ -1343,16 +1321,16 @@ _STVREN_OFF_4L                    000000FE
 _STVREN_ON_4L                     000000FF
 _USBDIV_1_1L                      000000DF
 _USBDIV_2_1L                      000000FF
-MPASM 5.81                     MAIN_CODE.ASM   9-1-2018  18:43:56         PAGE 24
+_VREGEN_OFF_2L                    000000DF
+_VREGEN_ON_2L                     000000FF
+_WDTPS_1024_2H                    000000F5
+_WDTPS_128_2H                     000000EF
+MPASM 5.81                     MAIN_CODE.ASM   9-2-2018  9:35:36         PAGE 24
 
 
 SYMBOL TABLE
   LABEL                             VALUE 
 
-_VREGEN_OFF_2L                    000000DF
-_VREGEN_ON_2L                     000000FF
-_WDTPS_1024_2H                    000000F5
-_WDTPS_128_2H                     000000EF
 _WDTPS_16384_2H                   000000FD
 _WDTPS_16_2H                      000000E9
 _WDTPS_1_2H                       000000E1

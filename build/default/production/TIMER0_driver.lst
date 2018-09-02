@@ -1,4 +1,4 @@
-MPASM 5.81                 TIMER0_DRIVER.ASM   9-1-2018  18:43:56         PAGE  1
+MPASM 5.81                 TIMER0_DRIVER.ASM   9-2-2018  9:35:35         PAGE  1
 
 
 LOC  OBJECT CODE     LINE SOURCE TEXT
@@ -21,53 +21,50 @@ LOC  OBJECT CODE     LINE SOURCE TEXT
   00000007            00005 T0CON_CONF  EQU     b'00000111';FOSC/4*256, Clock Instruction Cycle
   00000000            00006 T0DATA_L    EQU     0x00
   00000001            00007 T0DATA_H    EQU     0x01
-  000048E4            00008 T0PRECHARGE EQU     (0xffff-.46875)
-                      00009 
-                      00010 TIMER0_DATA UDATA   0x060
-000060                00011 TIMER0_PRECHARGE    RES 2
-                      00012     
-                      00013 TIMER0_DRIVER CODE
-  0000                00014     GLOBAL TIMER0_PRECHARGE
-  0000                00015     GLOBAL TIMER0_INIT
-  0000                00016     GLOBAL TIMER0_WR
-  0000                00017     GLOBAL TIMER0_START
-  0000                00018     GLOBAL TIMER0_STOP
-000000                00019 TIMER0_INIT:
-000000 0100           00020     MOVLB   0x00
-000002 0E07           00021     MOVLW   T0CON_CONF
-000004 6ED5           00022     MOVWF   T0CON,0
-                      00023     ; Cargar a RAM la variable de precarga
-000006 0E48           00024     MOVLW   ((T0PRECHARGE >> .8)&0xFF)
-000008 6F00           00025     MOVWF   TIMER0_PRECHARGE+1,1
-00000A 0EE4           00026     MOVLW   (T0PRECHARGE&0xFF)
-00000C 6F00           00027     MOVWF   TIMER0_PRECHARGE,1
-00000E 6AD6           00028     CLRF    TMR0L;Vaciar
-000010 6AD7           00029     CLRF    TMR0H;el timer
-000012 84F1           00030     BSF     INTCON2,TMR0IP,0;ACTIVAR LA PRIORIDAD DE INTERRUPCION ALTA
-000014 94F2           00031     BCF     INTCON,TMR0IF,0;LIMPIAR POSIBLES INTERRUPCIONES
-000016 8AF2           00032     BSF     INTCON,TMR0IE,0;ACTIVAR LA INTERRUPCION DEL TIMER
-000018 0012           00033     RETURN
-00001A                00034 TIMER0_WR:;;CARGAR EN 0X00 Y 0X01
-00001A 9ED5           00035     BCF     T0CON,TMR0ON,0;DETENER EL TIMER0 Y CARGAR LOS DATOS
-00001C 5000           00036     MOVF    T0DATA_L,W,0
-00001E 6ED6           00037     MOVWF   TMR0L,0
-000020 5001           00038     MOVF    T0DATA_H,W,0
-000022 6ED7           00039     MOVWF   TMR0H,0
+                      00008 
+                      00009 TIMER0_DATA UDATA   0x060
+000060                00010 TIMER0_PRECHARGE    RES 2
+                      00011     
+                      00012 TIMER0_DRIVER CODE
+  0000                00013     GLOBAL TIMER0_PRECHARGE
+  0000                00014     GLOBAL TIMER0_INIT
+  0000                00015     GLOBAL TIMER0_WR
+  0000                00016     GLOBAL TIMER0_START
+  0000                00017     GLOBAL TIMER0_STOP
+000000                00018 TIMER0_INIT:
+000000 0100           00019     MOVLB   0x00
+000002 0E07           00020     MOVLW   T0CON_CONF
+000004 6ED5           00021     MOVWF   T0CON,0
+                      00022     ; Cargar a RAM la variable de precarga
+000006 6B00           00023     CLRF   TIMER0_PRECHARGE+1,1
+000008 6B00           00024     CLRF   TIMER0_PRECHARGE,1
+00000A 6AD6           00025     CLRF    TMR0L;Vaciar
+00000C 6AD7           00026     CLRF    TMR0H;el timer
+00000E 84F1           00027     BSF     INTCON2,TMR0IP,0;ACTIVAR LA PRIORIDAD DE INTERRUPCION ALTA
+000010 94F2           00028     BCF     INTCON,TMR0IF,0;LIMPIAR POSIBLES INTERRUPCIONES
+000012 8AF2           00029     BSF     INTCON,TMR0IE,0;ACTIVAR LA INTERRUPCION DEL TIMER
+000014 0012           00030     RETURN
+000016                00031 TIMER0_WR:;;CARGAR EN 0X00 Y 0X01
+000016 9ED5           00032     BCF     T0CON,TMR0ON,0;DETENER EL TIMER0 Y CARGAR LOS DATOS
+000018 5000           00033     MOVF    T0DATA_L,W,0
+00001A 6E00           00034     MOVWF   TIMER0_PRECHARGE,0
+00001C 5001           00035     MOVF    T0DATA_H,W,0
+00001E 6E00           00036     MOVWF   TIMER0_PRECHARGE+.1,0
+000020 0012           00037     RETURN
+000022                00038 TIMER0_START:
+000022 8ED5           00039     BSF     T0CON,TMR0ON,0
 000024 0012           00040     RETURN
-000026                00041 TIMER0_START:
-000026 8ED5           00042     BSF     T0CON,TMR0ON,0
+000026                00041 TIMER0_STOP:
+000026 9ED5           00042     BCF     T0CON,TMR0ON,0
 000028 0012           00043     RETURN
-MPASM 5.81                 TIMER0_DRIVER.ASM   9-1-2018  18:43:56         PAGE  2
+MPASM 5.81                 TIMER0_DRIVER.ASM   9-2-2018  9:35:35         PAGE  2
 
 
 LOC  OBJECT CODE     LINE SOURCE TEXT
   VALUE
 
-00002A                00044 TIMER0_STOP:
-00002A 9ED5           00045     BCF     T0CON,TMR0ON,0
-00002C 0012           00046     RETURN
-                      00047     END
-MPASM 5.81                 TIMER0_DRIVER.ASM   9-1-2018  18:43:56         PAGE  3
+                      00044     END
+MPASM 5.81                 TIMER0_DRIVER.ASM   9-2-2018  9:35:35         PAGE  3
 
 
 SYMBOL TABLE
@@ -126,7 +123,7 @@ BRG16                             00000003
 BRGH                              00000002
 BSR                               00000FE0
 BTOEE                             00000004
-MPASM 5.81                 TIMER0_DRIVER.ASM   9-1-2018  18:43:56         PAGE  4
+MPASM 5.81                 TIMER0_DRIVER.ASM   9-2-2018  9:35:35         PAGE  4
 
 
 SYMBOL TABLE
@@ -185,7 +182,7 @@ CM2                               00000002
 CMCON                             00000FB4
 CMIE                              00000006
 CMIF                              00000006
-MPASM 5.81                 TIMER0_DRIVER.ASM   9-1-2018  18:43:56         PAGE  5
+MPASM 5.81                 TIMER0_DRIVER.ASM   9-2-2018  9:35:35         PAGE  5
 
 
 SYMBOL TABLE
@@ -244,7 +241,7 @@ EEIP                              00000004
 EEPGD                             00000007
 ENDP0                             00000003
 ENDP1                             00000004
-MPASM 5.81                 TIMER0_DRIVER.ASM   9-1-2018  18:43:56         PAGE  6
+MPASM 5.81                 TIMER0_DRIVER.ASM   9-2-2018  9:35:35         PAGE  6
 
 
 SYMBOL TABLE
@@ -303,7 +300,7 @@ HLVDL3                            00000003
 I2C_DAT                           00000005
 I2C_READ                          00000002
 I2C_START                         00000003
-MPASM 5.81                 TIMER0_DRIVER.ASM   9-1-2018  18:43:56         PAGE  7
+MPASM 5.81                 TIMER0_DRIVER.ASM   9-2-2018  9:35:35         PAGE  7
 
 
 SYMBOL TABLE
@@ -362,7 +359,7 @@ LATA6                             00000006
 LATB                              00000F8A
 LATB0                             00000000
 LATB1                             00000001
-MPASM 5.81                 TIMER0_DRIVER.ASM   9-1-2018  18:43:56         PAGE  8
+MPASM 5.81                 TIMER0_DRIVER.ASM   9-2-2018  9:35:35         PAGE  8
 
 
 SYMBOL TABLE
@@ -421,7 +418,7 @@ NOT_T1SYNC                        00000002
 NOT_T3SYNC                        00000002
 NOT_TO                            00000003
 NOT_W                             00000002
-MPASM 5.81                 TIMER0_DRIVER.ASM   9-1-2018  18:43:56         PAGE  9
+MPASM 5.81                 TIMER0_DRIVER.ASM   9-2-2018  9:35:35         PAGE  9
 
 
 SYMBOL TABLE
@@ -480,7 +477,7 @@ PORTB                             00000F81
 PORTC                             00000F82
 PORTD                             00000F83
 PORTE                             00000F84
-MPASM 5.81                 TIMER0_DRIVER.ASM   9-1-2018  18:43:56         PAGE 10
+MPASM 5.81                 TIMER0_DRIVER.ASM   9-2-2018  9:35:35         PAGE 10
 
 
 SYMBOL TABLE
@@ -539,7 +536,7 @@ RC7                               00000007
 RCEN                              00000003
 RCIDL                             00000006
 RCIE                              00000005
-MPASM 5.81                 TIMER0_DRIVER.ASM   9-1-2018  18:43:56         PAGE 11
+MPASM 5.81                 TIMER0_DRIVER.ASM   9-2-2018  9:35:35         PAGE 11
 
 
 SYMBOL TABLE
@@ -598,7 +595,7 @@ SPP3                              00000003
 SPP4                              00000004
 SPP5                              00000005
 SPP6                              00000006
-MPASM 5.81                 TIMER0_DRIVER.ASM   9-1-2018  18:43:56         PAGE 12
+MPASM 5.81                 TIMER0_DRIVER.ASM   9-2-2018  9:35:35         PAGE 12
 
 
 SYMBOL TABLE
@@ -656,14 +653,13 @@ T0DATA_L                          00000000
 T0IE                              00000005
 T0IF                              00000002
 T0IP                              00000002
-T0PRECHARGE                       000048E4
-MPASM 5.81                 TIMER0_DRIVER.ASM   9-1-2018  18:43:56         PAGE 13
+T0PS0                             00000000
+MPASM 5.81                 TIMER0_DRIVER.ASM   9-2-2018  9:35:35         PAGE 13
 
 
 SYMBOL TABLE
   LABEL                             VALUE 
 
-T0PS0                             00000000
 T0PS1                             00000001
 T0PS2                             00000002
 T0SE                              00000004
@@ -697,9 +693,9 @@ TBLPTRL                           00000FF6
 TBLPTRU                           00000FF8
 TIMER0_INIT                       00000000
 TIMER0_PRECHARGE                  00000060
-TIMER0_START                      00000026
-TIMER0_STOP                       0000002A
-TIMER0_WR                         0000001A
+TIMER0_START                      00000022
+TIMER0_STOP                       00000026
+TIMER0_WR                         00000016
 TMR0                              00000FD6
 TMR0H                             00000FD7
 TMR0IE                            00000005
@@ -716,13 +712,13 @@ TMR1IP                            00000000
 TMR1L                             00000FCE
 TMR1ON                            00000000
 TMR2                              00000FCC
-MPASM 5.81                 TIMER0_DRIVER.ASM   9-1-2018  18:43:56         PAGE 14
+TMR2IE                            00000001
+MPASM 5.81                 TIMER0_DRIVER.ASM   9-2-2018  9:35:35         PAGE 14
 
 
 SYMBOL TABLE
   LABEL                             VALUE 
 
-TMR2IE                            00000001
 TMR2IF                            00000001
 TMR2IP                            00000001
 TMR2ON                            00000002
@@ -775,13 +771,13 @@ TRISD4                            00000004
 TRISD5                            00000005
 TRISD6                            00000006
 TRISD7                            00000007
-MPASM 5.81                 TIMER0_DRIVER.ASM   9-1-2018  18:43:56         PAGE 15
+TRISE                             00000F96
+MPASM 5.81                 TIMER0_DRIVER.ASM   9-2-2018  9:35:35         PAGE 15
 
 
 SYMBOL TABLE
   LABEL                             VALUE 
 
-TRISE                             00000F96
 TRISE0                            00000000
 TRISE1                            00000001
 TRISE2                            00000002
@@ -834,13 +830,13 @@ UIE                               00000F69
 UIR                               00000F68
 UOEMON                            00000006
 UPUEN                             00000004
-MPASM 5.81                 TIMER0_DRIVER.ASM   9-1-2018  18:43:56         PAGE 16
+URSTIE                            00000000
+MPASM 5.81                 TIMER0_DRIVER.ASM   9-2-2018  9:35:35         PAGE 16
 
 
 SYMBOL TABLE
   LABEL                             VALUE 
 
-URSTIE                            00000000
 URSTIF                            00000000
 USBEN                             00000003
 USBIE                             00000005
@@ -893,13 +889,13 @@ _CONFIG7L                         0030000C
 _CP0_OFF_5L                       000000FF
 _CP0_ON_5L                        000000FE
 _CP1_OFF_5L                       000000FF
-MPASM 5.81                 TIMER0_DRIVER.ASM   9-1-2018  18:43:56         PAGE 17
+_CP1_ON_5L                        000000FD
+MPASM 5.81                 TIMER0_DRIVER.ASM   9-2-2018  9:35:35         PAGE 17
 
 
 SYMBOL TABLE
   LABEL                             VALUE 
 
-_CP1_ON_5L                        000000FD
 _CP2_OFF_5L                       000000FF
 _CP2_ON_5L                        000000FB
 _CP3_OFF_5L                       000000FF
@@ -952,13 +948,13 @@ _IDLOC6                           00200006
 _IDLOC7                           00200007
 _IESO_OFF_1H                      0000007F
 _IESO_ON_1H                       000000FF
-MPASM 5.81                 TIMER0_DRIVER.ASM   9-1-2018  18:43:56         PAGE 18
+_LPT1OSC_OFF_3H                   000000FB
+MPASM 5.81                 TIMER0_DRIVER.ASM   9-2-2018  9:35:35         PAGE 18
 
 
 SYMBOL TABLE
   LABEL                             VALUE 
 
-_LPT1OSC_OFF_3H                   000000FB
 _LPT1OSC_ON_3H                    000000FF
 _LVP_OFF_4L                       000000FB
 _LVP_ON_4L                        000000FF
@@ -1011,13 +1007,13 @@ _WRT3_ON_6L                       000000F7
 _WRTB_OFF_6H                      000000FF
 _WRTB_ON_6H                       000000BF
 _WRTC_OFF_6H                      000000FF
-MPASM 5.81                 TIMER0_DRIVER.ASM   9-1-2018  18:43:56         PAGE 19
+_WRTC_ON_6H                       000000DF
+MPASM 5.81                 TIMER0_DRIVER.ASM   9-2-2018  9:35:35         PAGE 19
 
 
 SYMBOL TABLE
   LABEL                             VALUE 
 
-_WRTC_ON_6H                       000000DF
 _WRTD_OFF_6H                      000000FF
 _WRTD_ON_6H                       0000007F
 _XINST_OFF_4L                     000000BF
